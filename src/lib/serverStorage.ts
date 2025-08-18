@@ -27,9 +27,18 @@ async function ensureDataDir() {
 
 async function blobGet<T>(key: string): Promise<T | null> {
   try {
-    // For now, we'll use filesystem as primary since blob.get() requires a full URL
-    // In production, you'd need to construct the full blob URL
-    return null;
+    // List blobs to find the one we want
+    const { blobs } = await list();
+    const targetBlob = blobs.find(blob => blob.pathname === `${key}.json`);
+    
+    if (!targetBlob) return null;
+    
+    // Fetch the blob content
+    const response = await fetch(targetBlob.url);
+    if (!response.ok) return null;
+    
+    const text = await response.text();
+    return JSON.parse(text) as T;
   } catch {
     return null;
   }
