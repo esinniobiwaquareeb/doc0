@@ -47,12 +47,15 @@ async function blobGet<T>(key: string): Promise<T | null> {
 async function blobSet<T>(key: string, value: T): Promise<void> {
   try {
     const jsonString = JSON.stringify(value);
-    await put(`${key}.json`, jsonString, {
+    console.log(`[Blob] Saving ${key} to blob storage...`);
+    const result = await put(`${key}.json`, jsonString, {
       access: 'public',
       addRandomSuffix: false
     });
-  } catch {
-    /* noop */
+    console.log(`[Blob] Successfully saved ${key} to blob storage:`, result.url);
+  } catch (error) {
+    console.error(`[Blob] Failed to save ${key} to blob storage:`, error);
+    throw error; // Re-throw to let caller know it failed
   }
 }
 
@@ -84,8 +87,21 @@ export async function getProjects(): Promise<Project[]> {
 }
 
 export async function setProjects(projects: Project[]): Promise<void> {
-  await blobSet<Project[]>('projects', projects);
-  await fsWrite<Project[]>('projects', projects);
+  console.log(`[Storage] Setting ${projects.length} projects...`);
+  try {
+    await blobSet<Project[]>('projects', projects);
+    console.log(`[Storage] Successfully saved to blob storage`);
+  } catch (error) {
+    console.error(`[Storage] Blob storage failed, falling back to filesystem:`, error);
+  }
+  
+  try {
+    await fsWrite<Project[]>('projects', projects);
+    console.log(`[Storage] Successfully saved to filesystem`);
+  } catch (error) {
+    console.error(`[Storage] Filesystem save also failed:`, error);
+    throw error; // If both fail, we have a problem
+  }
 }
 
 export async function getSharedLinks(): Promise<Record<string, SharedLink>> {
