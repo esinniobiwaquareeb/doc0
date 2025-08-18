@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, FileText, Users, Shield, Zap, Code, Eye, Share2, Timer, CheckCircle, Star, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,15 @@ import { Badge } from '@/components/ui/badge';
 export default function LandingPage() {
   const router = useRouter();
   const [hoveredFeature, setHoveredFeature] = useState<number | null>(null);
+
+  // Redirect old shared links from root to /app
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const shareToken = params.get('share');
+    if (shareToken) {
+      router.replace(`/u?share=${encodeURIComponent(shareToken)}`);
+    }
+  }, [router]);
 
   const features = [
     {
@@ -305,9 +314,9 @@ export default function LandingPage() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-24">
+      <section className="py-24" aria-labelledby="cta-heading">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-4xl md:text-5xl mb-6">
+          <h2 id="cta-heading" className="text-4xl md:text-5xl mb-6">
             Ready to Transform Your
             <br />
             <span className="text-primary">Documentation Workflow?</span>
@@ -323,13 +332,14 @@ export default function LandingPage() {
               size="lg" 
               onClick={handleGetStarted}
               className="px-8 py-6 text-lg group"
+              aria-label="Get started with Doc0 for free"
             >
               Get Started Free
-              <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" aria-hidden="true" />
             </Button>
             
-            <Button variant="outline" size="lg" className="px-8 py-6 text-lg" onClick={handleScheduleDemo}>
-              <Timer className="mr-2 w-5 h-5" />
+            <Button variant="outline" size="lg" className="px-8 py-6 text-lg" onClick={handleScheduleDemo} aria-label="Schedule a demo of Doc0">
+              <Timer className="mr-2 w-5 h-5" aria-hidden="true" />
               Schedule Demo
             </Button>
           </div>
@@ -341,7 +351,7 @@ export default function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t bg-muted/30 py-16">
+      <footer className="border-t bg-muted/30 py-16" role="contentinfo">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div className="col-span-1 md:col-span-2">
@@ -356,29 +366,29 @@ export default function LandingPage() {
               </div>
             </div>
             
-            <div>
-              <h4 className=" mb-4">Product</h4>
+            <nav aria-labelledby="product-links">
+              <h4 id="product-links" className="font-semibold mb-4">Product</h4>
               <ul className="space-y-2 text-muted-foreground">
                 <li><a href="#" className="hover:text-primary transition-colors">Features</a></li>
                 <li><a href="#" className="hover:text-primary transition-colors">Pricing</a></li>
                 <li><a href="#" className="hover:text-primary transition-colors">Documentation</a></li>
                 <li><a href="#" className="hover:text-primary transition-colors">API</a></li>
               </ul>
-            </div>
+            </nav>
             
-            <div>
-              <h4 className=" mb-4">Company</h4>
+            <nav aria-labelledby="company-links">
+              <h4 id="company-links" className="font-semibold mb-4">Company</h4>
               <ul className="space-y-2 text-muted-foreground">
                 <li><a href="#" className="hover:text-primary transition-colors">About</a></li>
                 <li><a href="#" className="hover:text-primary transition-colors">Blog</a></li>
                 <li><a href="#" className="hover:text-primary transition-colors">Careers</a></li>
                 <li><a href="#" className="hover:text-primary transition-colors">Contact</a></li>
               </ul>
-            </div>
+            </nav>
           </div>
           
           <div className="border-t border-border pt-8 mt-8 text-center text-muted-foreground">
-            <p>&copy; 2024 Doc0. All rights reserved. Built with ❤️ for developers.</p>
+            <p>&copy; 2024 Doc0. All rights reserved. Built with <span aria-label="love">❤️</span> for developers.</p>
           </div>
         </div>
       </footer>
