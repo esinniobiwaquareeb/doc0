@@ -41,3 +41,5 @@ yarn-error.log*
 next-env.d.ts
 src/data/projects.json
 src/data/projects.json
+src/data/favorites.json
+src/data/shared-links.json
