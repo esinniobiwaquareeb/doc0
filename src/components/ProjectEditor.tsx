@@ -689,7 +689,7 @@ export function ProjectEditor({ projectId, onBack }: ProjectEditorProps) {
                       <h4 className="text-sm font-medium">Active Share Links ({shareLinks.length})</h4>
                       <div className="space-y-3 max-h-60 overflow-y-auto">
                         {shareLinks.map((link) => {
-                          const shareUrl = `${window.location.origin}/app?share=${link.token}`;
+                          const shareUrl = `${window.location.origin}/u?share=${link.token}`;
                           const isExpired = new Date(link.expiresAt) < new Date();
                           
                           return (
