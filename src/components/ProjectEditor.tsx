@@ -66,7 +66,7 @@ export function ProjectEditor({ projectId, onBack }: ProjectEditorProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const [customAlias, setCustomAlias] = useState<string>('');
+  
 
   useEffect(() => {
     loadProject();
@@ -146,10 +146,7 @@ export function ProjectEditor({ projectId, onBack }: ProjectEditorProps) {
       const chosen = byKey.get(key);
       if (!chosen) {
         byKey.set(key, item);
-      } else if ((chosen.alias ? 0 : 1) > (item.alias ? 0 : 1)) {
-        // Prefer alias over token
-        byKey.set(key, item);
-      } else if (!chosen.alias && !isShort(chosen.token) && isShort(item.token)) {
+      } else if (!isShort(chosen.token) && isShort(item.token)) {
         byKey.set(key, item);
       }
     }
@@ -395,22 +392,8 @@ export function ProjectEditor({ projectId, onBack }: ProjectEditorProps) {
     };
 
     // Create a short token and store mapping server-side
-    let shortToken = (customAlias || '').trim();
-    if (shortToken) {
-      // Validate alias
-      shortToken = shortToken.replace(/[^a-z0-9-]/gi, '-').toLowerCase();
-      if (shortToken.length < 3) {
-        toast.error('Slug too short', { description: 'Use at least 3 characters' });
-        return;
-      }
-      // Check collision
-      const existing = await storageService.getSharedLinks();
-      if (existing[shortToken]) {
-        // Append timestamp to ensure uniqueness rather than rejecting
-        const suffix = Date.now().toString(36);
-        shortToken = `${shortToken}-${suffix}`;
-      }
-    } else {
+    let shortToken = '';
+    {
       // Derive from project name; ensure uniqueness by appending time if needed
       const slugify = (s: string) => s
         .toLowerCase()
@@ -780,32 +763,9 @@ export function ProjectEditor({ projectId, onBack }: ProjectEditorProps) {
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="space-y-2">
-                        <label className="text-xs font-medium">Custom Alias (optional)</label>
-                        <Input
-                          placeholder="e.g., my-project-docs"
-                          value={customAlias}
-                          onChange={(e) => setCustomAlias(e.target.value)}
-                          className="font-mono text-xs"
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          If you provide a custom alias, it will be used in the share URL.
-                          Otherwise, a random token will be generated.
-                        </p>
-                      </div>
+                      
                     </div>
-                    <div className="space-y-2 mb-4">
-                      <label className="text-xs font-medium">Custom Slug (optional)</label>
-                      <div className="grid grid-cols-[auto,1fr] gap-2 items-center">
-                        <div className="text-xs text-muted-foreground">/u/</div>
-                        <Input
-                          placeholder="my-client-review"
-                          value={customAlias}
-                          onChange={(e) => setCustomAlias(e.target.value.replace(/[^a-z0-9-]/gi, '-').toLowerCase())}
-                        />
-                      </div>
-                      <p className="text-xs text-muted-foreground">If provided, the link will be /u/your-slug</p>
-                    </div>
+                    
                     <Button onClick={createShareLink} className="w-full">
                       <Share2 className="h-4 w-4 mr-2" />
                       Create Share Link
