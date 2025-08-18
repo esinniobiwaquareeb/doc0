@@ -40,7 +40,7 @@ export class NextJsStorageService {
 
   // Generic API methods
   private async apiGet<T>(endpoint: string): Promise<T> {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`);
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, { cache: 'no-store' });
     if (!response.ok) {
       throw new Error(`API request failed: ${response.statusText}`);
     }
@@ -52,7 +52,9 @@ export class NextJsStorageService {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Cache-Control': 'no-store'
       },
+      cache: 'no-store',
       body: JSON.stringify(data),
     });
     if (!response.ok) {
@@ -66,7 +68,9 @@ export class NextJsStorageService {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
+        'Cache-Control': 'no-store'
       },
+      cache: 'no-store',
       body: JSON.stringify(data),
     });
     if (!response.ok) {
@@ -78,6 +82,8 @@ export class NextJsStorageService {
   private async apiDelete(endpoint: string): Promise<void> {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'DELETE',
+      headers: { 'Cache-Control': 'no-store' },
+      cache: 'no-store'
     });
     if (!response.ok) {
       throw new Error(`API request failed: ${response.statusText}`);
@@ -117,7 +123,6 @@ export class NextJsStorageService {
       } else {
         this.projectsCache.push(project);
       }
-      
       await this.apiPut(`/projects/${project.id}`, project);
     } catch (error) {
       // Error handling will be done by the calling component
@@ -136,17 +141,12 @@ export class NextJsStorageService {
   async getProject(projectId: string): Promise<Project | null> {
     try {
       const project = this.projectsCache.find(p => p.id === projectId);
-      if (project) {
-        return project;
-      }
-      
-      // Try to fetch from API if not in cache
+      if (project) return project;
       const fetchedProject = await this.apiGet<Project>(`/projects/${projectId}`);
       if (fetchedProject) {
         this.projectsCache.push(fetchedProject);
         return fetchedProject;
       }
-      
       return null;
     } catch (error) {
       return null;
@@ -197,7 +197,6 @@ export class NextJsStorageService {
         favorites: this.favoritesCache,
         exportDate: new Date().toISOString()
       };
-      
       return JSON.stringify(exportData, null, 2);
     } catch (error) {
       return '{}';
@@ -208,26 +207,16 @@ export class NextJsStorageService {
     try {
       const projects = this.getProjectsSync();
       const projectsJson = JSON.stringify(projects);
-      const totalSize = this.formatBytes(Buffer.byteLength(projectsJson, 'utf8'));
-      
+      const totalSize = new TextEncoder().encode(projectsJson).length.toString();
       return {
         totalProjects: projects.length,
         totalSize,
         fileSystemSize: totalSize
       };
     } catch (error) {
-      return { totalProjects: 0, totalSize: '0 B', fileSystemSize: '0 B' };
+      return { totalProjects: 0, totalSize: '0 B', fileSystemSize: '0 B' } as unknown as StorageStats;
     }
-  }
-
-  private formatBytes(bytes: number): string {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   }
 }
 
-// Export singleton instance
 export const storageService = new NextJsStorageService();
