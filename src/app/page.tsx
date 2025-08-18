@@ -11,7 +11,7 @@ export default function LandingPage() {
   const router = useRouter();
   const [hoveredFeature, setHoveredFeature] = useState<number | null>(null);
 
-  // Redirect old shared links from root to /app
+  // Redirect old shared links from root to /u
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const shareToken = params.get('share');
@@ -93,7 +93,7 @@ export default function LandingPage() {
   ];
 
   const handleGetStarted = () => {
-    router.push('/app');
+    router.push('/u');
   };
 
   const handleViewDemo = () => {
