@@ -1,33 +1,12 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { NextRequest, NextResponse } from 'next/server';
-import { promises as fs } from 'fs';
-import path from 'path';
-
-const dataDir = path.join(process.cwd(), 'src', 'data');
-const favoritesFile = path.join(dataDir, 'favorites.json');
-
-// Ensure data directory exists
-async function ensureDataDir() {
-  try {
-    await fs.access(dataDir);
-  } catch {
-    await fs.mkdir(dataDir, { recursive: true });
-  }
-}
+import { getFavorites as kvGetFavorites, setFavorites as kvSetFavorites } from '@/lib/serverStorage';
 
 // Get favorites
 export async function GET() {
   try {
-    await ensureDataDir();
-    
-    try {
-      const data = await fs.readFile(favoritesFile, 'utf-8');
-      const favorites = JSON.parse(data);
-      return NextResponse.json(favorites);
-    } catch {
-      // File doesn't exist, return empty array
-      return NextResponse.json([]);
-    }
+    const favorites = await kvGetFavorites();
+    return NextResponse.json(favorites);
   } catch (error) {
     return NextResponse.json(
       { error: 'Failed to get favorites' },
@@ -39,8 +18,6 @@ export async function GET() {
 // Update favorites
 export async function POST(request: NextRequest) {
   try {
-    await ensureDataDir();
-    
     const body = await request.json();
     const { favorites } = body;
     
@@ -51,7 +28,7 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    await fs.writeFile(favoritesFile, JSON.stringify(favorites, null, 2));
+    await kvSetFavorites(favorites);
     
     return NextResponse.json({ 
       message: 'Favorites updated successfully', 

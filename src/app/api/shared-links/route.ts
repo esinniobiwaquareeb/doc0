@@ -1,33 +1,12 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { NextRequest, NextResponse } from 'next/server';
-import { promises as fs } from 'fs';
-import path from 'path';
-
-const dataDir = path.join(process.cwd(), 'src', 'data');
-const sharedLinksFile = path.join(dataDir, 'shared-links.json');
-
-// Ensure data directory exists
-async function ensureDataDir() {
-  try {
-    await fs.access(dataDir);
-  } catch {
-    await fs.mkdir(dataDir, { recursive: true });
-  }
-}
+import { getSharedLinks as kvGetSharedLinks, setSharedLinks as kvSetSharedLinks } from '@/lib/serverStorage';
 
 // Get all shared links
 export async function GET() {
   try {
-    await ensureDataDir();
-    
-    try {
-      const data = await fs.readFile(sharedLinksFile, 'utf-8');
-      const sharedLinks = JSON.parse(data);
-      return NextResponse.json(sharedLinks);
-    } catch {
-      // File doesn't exist, return empty object
-      return NextResponse.json({});
-    }
+    const sharedLinks = await kvGetSharedLinks();
+    return NextResponse.json(sharedLinks);
   } catch (error) {
     return NextResponse.json(
       { error: 'Failed to get shared links' },
@@ -39,8 +18,6 @@ export async function GET() {
 // Create or update shared links
 export async function POST(request: NextRequest) {
   try {
-    await ensureDataDir();
-    
     const body = await request.json();
     const { sharedLinks } = body;
     
@@ -51,7 +28,7 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    await fs.writeFile(sharedLinksFile, JSON.stringify(sharedLinks, null, 2));
+    await kvSetSharedLinks(sharedLinks);
     
     return NextResponse.json({ 
       message: 'Shared links saved successfully' 

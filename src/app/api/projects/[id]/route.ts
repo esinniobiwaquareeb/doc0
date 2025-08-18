@@ -1,10 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server';
-import { promises as fs } from 'fs';
-import path from 'path';
-
-const dataDir = path.join(process.cwd(), 'src', 'data');
-const projectsFile = path.join(dataDir, 'projects.json');
+import { getProjects as kvGetProjects, setProjects as kvSetProjects } from '@/lib/serverStorage';
 
 // Get project by ID
 export async function GET(
@@ -13,26 +9,12 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    
-    try {
-      const data = await fs.readFile(projectsFile, 'utf-8');
-      const projects = JSON.parse(data);
-      const project = projects.find((p: { id: string }) => p.id === id);
-      
-      if (!project) {
-        return NextResponse.json(
-          { error: 'Project not found' },
-          { status: 404 }
-        );
-      }
-      
-      return NextResponse.json(project);
-    } catch {
-      return NextResponse.json(
-        { error: 'Project not found' },
-        { status: 404 }
-      );
+    const projects = await kvGetProjects();
+    const project = projects.find((p: { id: string }) => p.id === id);
+    if (!project) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
+    return NextResponse.json(project);
   } catch (error) {
     return NextResponse.json(
       { error: 'Failed to get project' },
@@ -58,13 +40,7 @@ export async function PUT(
     }
     
     // Read existing projects
-    let projects: any[] = [];
-    try {
-      const data = await fs.readFile(projectsFile, 'utf-8');
-      projects = JSON.parse(data);
-    } catch {
-      // File doesn't exist, start with empty array
-    }
+    const projects: any[] = await kvGetProjects();
     
     // Update or add project
     const existingIndex = projects.findIndex((p: { id: string }) => p.id === id);
@@ -75,7 +51,7 @@ export async function PUT(
     }
     
     // Save updated projects
-    await fs.writeFile(projectsFile, JSON.stringify(projects, null, 2));
+    await kvSetProjects(projects);
     
     return NextResponse.json({ 
       message: 'Project saved successfully', 
@@ -98,16 +74,7 @@ export async function DELETE(
     const { id } = await params;
     
     // Read existing projects
-    let projects: any[] = [];
-    try {
-      const data = await fs.readFile(projectsFile, 'utf-8');
-      projects = JSON.parse(data);
-    } catch {
-      return NextResponse.json(
-        { error: 'No projects found' },
-        { status: 404 }
-      );
-    }
+    const projects: any[] = await kvGetProjects();
     
     // Remove project
     const filteredProjects = projects.filter((p: { id: string }) => p.id !== id);
@@ -120,7 +87,7 @@ export async function DELETE(
     }
     
     // Save updated projects
-    await fs.writeFile(projectsFile, JSON.stringify(filteredProjects, null, 2));
+    await kvSetProjects(filteredProjects);
     
     return NextResponse.json({ 
       message: 'Project deleted successfully' 

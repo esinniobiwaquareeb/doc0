@@ -1,33 +1,12 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { NextRequest, NextResponse } from 'next/server';
-import { promises as fs } from 'fs';
-import path from 'path';
-
-const dataDir = path.join(process.cwd(), 'src', 'data');
-const projectsFile = path.join(dataDir, 'projects.json');
-
-// Ensure data directory exists
-async function ensureDataDir() {
-  try {
-    await fs.access(dataDir);
-  } catch {
-    await fs.mkdir(dataDir, { recursive: true });
-  }
-}
+import { getProjects as kvGetProjects, setProjects as kvSetProjects } from '@/lib/serverStorage';
 
 // Get all projects
 export async function GET() {
   try {
-    await ensureDataDir();
-    
-    try {
-      const data = await fs.readFile(projectsFile, 'utf-8');
-      const projects = JSON.parse(data);
-      return NextResponse.json(projects);
-    } catch {
-      // File doesn't exist, return empty array
-      return NextResponse.json([]);
-    }
+    const projects = await kvGetProjects();
+    return NextResponse.json(projects);
   } catch (error) {
     return NextResponse.json(
       { error: 'Failed to get projects' },
@@ -39,8 +18,6 @@ export async function GET() {
 // Create or update project
 export async function POST(request: NextRequest) {
   try {
-    await ensureDataDir();
-    
     const body = await request.json();
     const { projects } = body;
     
@@ -51,7 +28,7 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    await fs.writeFile(projectsFile, JSON.stringify(projects, null, 2));
+    await kvSetProjects(projects);
     
     return NextResponse.json({ 
       message: 'Projects saved successfully', 
