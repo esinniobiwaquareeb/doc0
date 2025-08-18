@@ -334,7 +334,13 @@ export function ProjectEditor({ projectId, onBack }: ProjectEditorProps) {
     // Save project first to ensure latest content is available
     void saveProject(false);
     
-    const token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    // Stateless share token payload (base64url-encoded JSON)
+    const base64urlEncode = (input: string) =>
+      btoa(unescape(encodeURIComponent(input)))
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/,'');
+
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + parseInt(shareExpiryDays));
 
@@ -346,9 +352,17 @@ export function ProjectEditor({ projectId, onBack }: ProjectEditorProps) {
       projectName: project?.name || 'Unknown Project'
     };
 
-    const allSharedLinks = await storageService.getSharedLinks();
-    (allSharedLinks as any)[token] = linkData;
-    await storageService.saveSharedLinks(allSharedLinks as any);
+    // Embed payload into the token to avoid relying on server persistence
+    const token = base64urlEncode(JSON.stringify({ v: 1, ...linkData }));
+
+    // Best-effort save so the editor can list active links (not required for sharing to work)
+    try {
+      const allSharedLinks = await storageService.getSharedLinks();
+      (allSharedLinks as any)[token] = linkData;
+      await storageService.saveSharedLinks(allSharedLinks as any);
+    } catch {
+      // ignore
+    }
 
     const shareUrl = `${window.location.origin}/u?share=${token}`;
     setNewlyCreatedLink(shareUrl);
