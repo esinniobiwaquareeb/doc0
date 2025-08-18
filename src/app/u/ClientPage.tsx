@@ -31,7 +31,18 @@ export default function ClientPage() {
     try {
       // Check for shared link access
       const urlParams = new URLSearchParams(window.location.search);
-      const shareToken = urlParams.get('share');
+      let shareToken = urlParams.get('share');
+      // Support short path variant /u/:token
+      if (!shareToken) {
+        const pathMatch = window.location.pathname.match(/\/u\/(.+)$/);
+        if (pathMatch) {
+          const candidate = decodeURIComponent(pathMatch[1]);
+          // Only accept URL-safe short tokens
+          if (/^[0-9A-Za-z_-]{3,64}$/.test(candidate)) {
+            shareToken = candidate;
+          }
+        }
+      }
       
       if (shareToken) {
         try {

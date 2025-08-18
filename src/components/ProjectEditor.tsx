@@ -66,6 +66,7 @@ export function ProjectEditor({ projectId, onBack }: ProjectEditorProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [customAlias, setCustomAlias] = useState<string>('');
 
   useEffect(() => {
     loadProject();
@@ -133,10 +134,42 @@ export function ProjectEditor({ projectId, onBack }: ProjectEditorProps) {
 
   const loadShareLinks = async () => {
     const allSharedLinks = await storageService.getSharedLinks();
-    const projectLinks = Object.entries(allSharedLinks)
+    const entries = Object.entries(allSharedLinks)
       .filter(([, data]: [string, any]) => (data as any).projectId === projectId)
       .map(([token, data]: [string, any]) => ({ token, ...(data as any) }));
-    setShareLinks(projectLinks);
+
+    // Deduplicate: keep one link per (accessType, expiresAt) preferring short tokens
+    const isShort = (t: string) => /^[0-9A-Za-z]{8,14}$/.test(t);
+    const byKey = new Map<string, { token: string } & any>();
+    for (const item of entries) {
+      const key = `${item.accessType}|${item.expiresAt}`;
+      const chosen = byKey.get(key);
+      if (!chosen) {
+        byKey.set(key, item);
+      } else if ((chosen.alias ? 0 : 1) > (item.alias ? 0 : 1)) {
+        // Prefer alias over token
+        byKey.set(key, item);
+      } else if (!chosen.alias && !isShort(chosen.token) && isShort(item.token)) {
+        byKey.set(key, item);
+      }
+    }
+    const deduped = Array.from(byKey.values());
+    setShareLinks(deduped);
+
+    // Optionally persist cleanup by removing duplicate tokens for this project
+    try {
+      const desiredTokens = new Set(deduped.map((d) => d.token));
+      const cleaned: Record<string, any> = { ...allSharedLinks } as any;
+      for (const [token, data] of Object.entries(allSharedLinks)) {
+        const d = data as any;
+        if (d.projectId === projectId && !desiredTokens.has(token)) {
+          delete (cleaned as any)[token];
+        }
+      }
+      await storageService.saveSharedLinks(cleaned as any);
+    } catch {
+      // ignore persistence cleanup errors
+    }
   };
 
   // Real-time content generation - SIMPLIFIED to avoid excessive state changes
@@ -334,7 +367,16 @@ export function ProjectEditor({ projectId, onBack }: ProjectEditorProps) {
     // Save project first to ensure latest content is available
     void saveProject(false);
     
-    // Stateless share token payload (base64url-encoded JSON)
+    // Prefer short token mapping for friendly URLs; keep stateless token as fallback key if needed
+    const generateShortToken = (length = 10) => {
+      const alphabet = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+      let out = '';
+      const cryptoObj = window.crypto || (window as any).msCrypto;
+      const bytes = new Uint8Array(length);
+      cryptoObj.getRandomValues(bytes);
+      for (let i = 0; i < length; i++) out += alphabet[bytes[i] % alphabet.length];
+      return out;
+    };
     const base64urlEncode = (input: string) =>
       btoa(unescape(encodeURIComponent(input)))
         .replace(/\+/g, '-')
@@ -352,19 +394,67 @@ export function ProjectEditor({ projectId, onBack }: ProjectEditorProps) {
       projectName: project?.name || 'Unknown Project'
     };
 
-    // Embed payload into the token to avoid relying on server persistence
-    const token = base64urlEncode(JSON.stringify({ v: 1, ...linkData }));
-
-    // Best-effort save so the editor can list active links (not required for sharing to work)
+    // Create a short token and store mapping server-side
+    let shortToken = (customAlias || '').trim();
+    if (shortToken) {
+      // Validate alias
+      shortToken = shortToken.replace(/[^a-z0-9-]/gi, '-').toLowerCase();
+      if (shortToken.length < 3) {
+        toast.error('Slug too short', { description: 'Use at least 3 characters' });
+        return;
+      }
+      // Check collision
+      const existing = await storageService.getSharedLinks();
+      if (existing[shortToken]) {
+        // Append timestamp to ensure uniqueness rather than rejecting
+        const suffix = Date.now().toString(36);
+        shortToken = `${shortToken}-${suffix}`;
+      }
+    } else {
+      // Derive from project name; ensure uniqueness by appending time if needed
+      const slugify = (s: string) => s
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .replace(/--+/g, '-');
+      const base = project?.name ? slugify(project.name) : '';
+      shortToken = base && base.length >= 3 ? base : generateShortToken(8);
+      try {
+        const existing = await storageService.getSharedLinks();
+        if (existing[shortToken]) {
+          const suffix = Date.now().toString(36);
+          shortToken = `${base}-${suffix}`;
+          if (existing[shortToken]) {
+            shortToken = `${base}-${Date.now()}`;
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+    // Best-effort save so the editor can list active links and short links work
     try {
       const allSharedLinks = await storageService.getSharedLinks();
-      (allSharedLinks as any)[token] = linkData;
+      (allSharedLinks as any)[shortToken] = { ...linkData };
+      // Cleanup any older long tokens for same (accessType, expiresAt)
+      const isShort = (t: string) => /^[0-9A-Za-z]{8,14}$/.test(t);
+      for (const [token, data] of Object.entries(allSharedLinks)) {
+        const d = data as any;
+        if (
+          d.projectId === projectId &&
+          d.accessType === linkData.accessType &&
+          d.expiresAt === linkData.expiresAt &&
+          !isShort(token)
+        ) {
+          delete (allSharedLinks as any)[token];
+        }
+      }
       await storageService.saveSharedLinks(allSharedLinks as any);
     } catch {
       // ignore
     }
 
-    const shareUrl = `${window.location.origin}/u?share=${token}`;
+    const shareUrl = `${window.location.origin}/u/${encodeURIComponent(shortToken)}`;
     setNewlyCreatedLink(shareUrl);
     
     loadShareLinks();
@@ -690,6 +780,31 @@ export function ProjectEditor({ projectId, onBack }: ProjectEditorProps) {
                           </SelectContent>
                         </Select>
                       </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-medium">Custom Alias (optional)</label>
+                        <Input
+                          placeholder="e.g., my-project-docs"
+                          value={customAlias}
+                          onChange={(e) => setCustomAlias(e.target.value)}
+                          className="font-mono text-xs"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          If you provide a custom alias, it will be used in the share URL.
+                          Otherwise, a random token will be generated.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="space-y-2 mb-4">
+                      <label className="text-xs font-medium">Custom Slug (optional)</label>
+                      <div className="grid grid-cols-[auto,1fr] gap-2 items-center">
+                        <div className="text-xs text-muted-foreground">/u/</div>
+                        <Input
+                          placeholder="my-client-review"
+                          value={customAlias}
+                          onChange={(e) => setCustomAlias(e.target.value.replace(/[^a-z0-9-]/gi, '-').toLowerCase())}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">If provided, the link will be /u/your-slug</p>
                     </div>
                     <Button onClick={createShareLink} className="w-full">
                       <Share2 className="h-4 w-4 mr-2" />
@@ -703,7 +818,10 @@ export function ProjectEditor({ projectId, onBack }: ProjectEditorProps) {
                       <h4 className="text-sm font-medium">Active Share Links ({shareLinks.length})</h4>
                       <div className="space-y-3 max-h-60 overflow-y-auto">
                         {shareLinks.map((link) => {
-                          const shareUrl = `${window.location.origin}/u?share=${link.token}`;
+                          const isShort = /^[0-9A-Za-z]{8,14}$/.test(link.token);
+                          const shareUrl = isShort
+                            ? `${window.location.origin}/u/${link.token}`
+                            : `${window.location.origin}/u?share=${link.token}`;
                           const isExpired = new Date(link.expiresAt) < new Date();
                           
                           return (
