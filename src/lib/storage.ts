@@ -87,6 +87,12 @@ export class NextJsStorageService {
   // Public methods
   async getProjects(): Promise<Project[]> {
     await this.initializeStorage();
+    try {
+      const fresh = await this.apiGet<Project[]>('/projects');
+      this.projectsCache = fresh;
+    } catch {
+      // keep existing cache on fetch failure
+    }
     return this.projectsCache;
   }
 

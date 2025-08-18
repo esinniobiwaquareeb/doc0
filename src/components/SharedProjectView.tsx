@@ -97,6 +97,8 @@ export function SharedProjectView({ projectId, accessType, onBack }: SharedProje
       );
 
       await storageService.saveProjects(updatedProjects);
+      // Refresh the cache so other views reflect new content quickly
+      await storageService.getProjects();
       setProject(updatedProject);
       setOriginalContent(content);
       
